@@ -1,6 +1,6 @@
 # WazeToastr
 
-A toast notification library for Waze Map Editor (WME) scripts that provides a consistent and user-friendly way to display alerts, messages, and prompts.
+A toast notification library forked from WazeWrap originally from WazeDev for Waze Map Editor (WME) scripts that provides a consistent and user-friendly way to display alerts, messages, and prompts.
 
 ## Installation
 
@@ -10,23 +10,6 @@ Include WazeToastr in your userscript by adding the main script:
 // @require https://kid4rm90s.github.io/WazeToastr/WazeToastr.js
 ```
 
-## Usage
-
-Wait for WazeToastr to be ready before using it:
-
-```javascript
-function init() {
-    if (!WazeToastr.Ready) {
-        setTimeout(init, 100);
-        return;
-    }
-    
-    // Your code here
-    WazeToastr.Alerts.success("MyScript", "Script loaded successfully!");
-}
-
-init();
-```
 
 ## Alert Types
 
@@ -240,7 +223,7 @@ WazeToastr.Alerts.confirm(
 
 ## Version
 
-Current version: 2025.04.11.00
+Current version: 2025.12.27.00
 
 ## License
 
