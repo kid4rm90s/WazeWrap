@@ -85,6 +85,19 @@
             );
 
             await $.getScript('https://kid4rm90s.github.io/WazeToastr/toastr.min.js');
+            
+            // Wait for wazetoastr to be defined
+            await new Promise((resolve) => {
+                const checkToastr = () => {
+                    if (typeof wazetoastr !== 'undefined') {
+                        resolve();
+                    } else {
+                        setTimeout(checkToastr, 50);
+                    }
+                };
+                checkToastr();
+            });
+            
             wazetoastr.options = {
                 target: '#map',
                 timeOut: 6000,
