@@ -29,6 +29,7 @@
         WazeToastr.isBetaEditor = /beta/.test(location.href);
 
         loadSettings();
+        initializeScriptUpdateInterface();
         await initializeToastr();
 
         WazeToastr.Alerts = new Alerts();
@@ -150,6 +151,57 @@
         catch (err) {
             console.log(err);
         }
+    }
+
+    function initializeScriptUpdateInterface() {
+        console.log("creating script update interface");
+        injectCSS();
+        var $section = $("<div>", { style: "padding:8px 16px", id: "wmeWTScriptUpdates" });
+        $section.html([
+            '<div id="WTSU-Container" class="fa" style="position:fixed; top:20%; left:40%; z-index:1000; display:none;">',
+            '<div id="WTSU-Close" class="fa-close fa-lg"></div>',
+            '<div class="modal-heading">',
+            '<h2>Script Updates</h2>',
+            '<h4><span id="WTSU-updateCount">0</span> of your scripts have updates</h4>',
+            '</div>',
+            '<div class="WTSU-updates-wrapper">',
+            '<div id="WTSU-script-list">',
+            '</div>',
+            '<div id="WTSU-script-update-info">',
+            '</div></div></div>'
+        ].join(' '));
+        $("#WazeMap").append($section.html());
+
+        $('#WTSU-Close').click(function () {
+            $('#WTSU-Container').hide();
+        });
+
+        $(document).on('click', '.WTSU-script-item', function () {
+            $('.WTSU-script-item').removeClass("WTSU-active");
+            $(this).addClass("WTSU-active");
+        });
+    }
+
+    function injectCSS() {
+        let css = [
+            '#WTSU-Container { position:relative; background-color:#fbfbfb; width:650px; height:375px; border-radius:8px; padding:20px; box-shadow: 0 22px 84px 0 rgba(87, 99, 125, 0.5); border:1px solid #ededed; }',
+            '#WTSU-Close { color:#000000; background-color:#ffffff; border:1px solid #ececec; border-radius:10px; height:25px; width:25px; position: absolute; right:14px; top:10px; cursor:pointer; padding: 5px 0px 0px 5px;}',
+            '#WTSU-Container .modal-heading,.WTSU-updates-wrapper { font-family: "Helvetica Neue", Helvetica, "Open Sans", sans-serif; } ',
+            '.WTSU-updates-wrapper { height:350px; }',
+            '#WTSU-script-list { float:left; width:175px; height:100%; padding-right:6px; margin-right:10px; overflow-y: auto; overflow-x: hidden; height:300px; }',
+            '.WTSU-script-item { text-decoration: none; min-height:40px; display:flex; text-align: center; justify-content: center; align-items: center; margin:3px 3px 10px 3px; background-color:white; border-radius:8px; box-shadow: rgba(0, 0, 0, 0.4) 0px 1px 1px 0.25px; transition:all 200ms ease-in-out; cursor:pointer;}',
+            '.WTSU-script-item:hover { text-decoration: none; }',
+            '.WTSU-active { transform: translate3d(5px, 0px, 0px); box-shadow: rgba(0, 0, 0, 0.4) 0px 3px 7px 0px; }',
+            '#WTSU-script-update-info { width:auto; background-color:white; height:275px; overflow-y:auto; border-radius:8px; box-shadow: rgba(0, 0, 0, 0.09) 0px 6px 7px 0.09px; padding:15px; position:relative;}',
+            '#WTSU-script-update-info div { display: none;}',
+            '#WTSU-script-update-info div:target { display: block; }',
+            '.WTAlertsHistory:hover #WTAlertsHistory-list{display:block;}',
+            '.WTAlertsHistory > .fa-exclamation-triangle {position: absolute; left:50%; margin-left:-9px; margin-top:8px;}',
+            '#WTAlertsHistory-list{display:none; position:absolute; top:28px; border:2px solid black; border-radius:10px; background-color:white; padding:4px; overflow-y:auto; max-height: 300px;}',
+            '#WTAlertsHistory-list #toast-container-history > div {max-width:500px; min-width:500px; border-radius:10px;}',
+            '#WTAlertsHistory-list > #toast-container-history{ position:static; }'
+        ].join(' ');
+        $('<style type="text/css">' + css + '</style>').appendTo('head');
     }
 
     function Alerts() {
@@ -367,23 +419,52 @@
          * @param {string} forumLink - Link to forum discussion (optional)
          **/
         this.ShowScriptUpdate = function (scriptName, version, updateHTML, greasyforkLink = "", forumLink = "") {
-            // Simply show an info alert with the update information
-            let message = `<strong>Version ${version}</strong><br>${updateHTML}`;
-            
-            if (greasyforkLink || forumLink) {
-                message += '<br><br>';
-                if (greasyforkLink) {
-                    message += `<a href="${greasyforkLink}" target="_blank">Install Update</a>`;
-                }
-                if (greasyforkLink && forumLink) {
-                    message += ' | ';
-                }
-                if (forumLink) {
-                    message += `<a href="${forumLink}" target="_blank">Forum Discussion</a>`;
+            let settings;
+            function loadSettings() {
+                var loadedSettings = $.parseJSON(localStorage.getItem("WTScriptUpdate"));
+                var defaultSettings = {
+                    ScriptUpdateHistory: {},
+                };
+                settings = loadedSettings ? loadedSettings : defaultSettings;
+                for (var prop in defaultSettings) {
+                    if (!settings.hasOwnProperty(prop))
+                        settings[prop] = defaultSettings[prop];
                 }
             }
-            
-            WazeToastr.Alerts.info(scriptName, message, true, false);
+
+            function saveSettings() {
+                if (localStorage) {
+                    var localsettings = {
+                        ScriptUpdateHistory: settings.ScriptUpdateHistory,
+                    };
+
+                    localStorage.setItem("WTScriptUpdate", JSON.stringify(localsettings));
+                }
+            }
+
+            loadSettings();
+
+            if ((updateHTML && updateHTML.length > 0) && (typeof settings.ScriptUpdateHistory[scriptName] === "undefined" || settings.ScriptUpdateHistory[scriptName] != version)) {
+                let currCount = $('.WTSU-script-item').length;
+                let divID = (scriptName + ("" + version)).toLowerCase().replace(/[^a-z-_0-9]/g, '');
+                $('#WTSU-script-list').append(`<a href="#${divID}" class="WTSU-script-item ${currCount === 0 ? 'WTSU-active' : ''}">${scriptName}</a>`); //add the script's tab
+                $("#WTSU-updateCount").html(parseInt($("#WTSU-updateCount").html()) + 1); //increment the total script updates value
+                let install = "", forum = "";
+                if (greasyforkLink != "")
+                    install = `<a href="${greasyforkLink}" target="_blank">Greasyfork</a>`;
+                if (forumLink != "")
+                    forum = `<a href="${forumLink}" target="_blank">Forum</a>`;
+                let footer = "";
+                if (forumLink != "" || greasyforkLink != "") {
+                    footer = `<span class="WTSUFooter" style="margin-bottom:2px; display:block;">${install}${(greasyforkLink != "" && forumLink != "") ? " | " : ""}${forum}</span>`;
+                }
+                $('#WTSU-script-update-info').append(`<div id="${divID}"><span><h3>${version}</h3><br>${updateHTML}</span>${footer}</div>`);
+                $('#WTSU-Container').show();
+                if (currCount === 0)
+                    $('#WTSU-script-list').find("a")[0].click();
+                settings.ScriptUpdateHistory[scriptName] = version;
+                saveSettings();
+            }
         };
     }
 }.call(this));
