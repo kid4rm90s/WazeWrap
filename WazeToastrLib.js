@@ -188,5 +188,170 @@
         this.confirm = function (scriptName, message, okFunction, cancelFunction, okBtnText = "Ok", cancelBtnText = "Cancel") {
             wazetoastr.confirm(message, scriptName, { confirmOK: okFunction, confirmCancel: cancelFunction, ConfirmOkButtonText: okBtnText, ConfirmCancelButtonText: cancelBtnText });
         }
+
+        this.ScriptUpdateMonitor = class {
+            #lastVersionChecked = '0';
+            #scriptName;
+            #currentVersion;
+            #downloadUrl;
+            #metaUrl;
+            #metaRegExp;
+            #GM_xmlhttpRequest;
+            #intervalChecker = null;
+    
+            /**
+             * Creates an instance of ScriptUpdateMonitor.
+             * @param {string} scriptName The name of your script. Used as the alert title and in console error messages.
+             * @param {string|number} currentVersion The current installed version of the script.
+             * @param {string} downloadUrl The download URL of the script. If using Greasy Fork, the URL should end with ".user.js".
+             * @param {object} GM_xmlhttpRequest A reference to the GM_xmlhttpRequest function used by your script.
+             * This is used to obtain the latest script version number from the server.
+             * @param {string} [metaUrl] The URL to a page containing the latest script version number.
+             * Optional for Greasy Fork scripts (uses download URL path, replacing ".user.js" with ".meta.js").
+             * @param {RegExp} [metaRegExp] A regular expression with a single capture group to extract the
+             * version number from the metaUrl page. e.g. /@version\s+(.+)/i. Required if metaUrl is specified.
+             * Ignored if metaUrl is a falsy value.
+             * @memberof ScriptUpdateMonitor
+             */
+            constructor(scriptName, currentVersion, downloadUrl, GM_xmlhttpRequest, metaUrl = null, metaRegExp = null) {
+                this.#scriptName = scriptName;
+                this.#currentVersion = currentVersion;
+                this.#downloadUrl = downloadUrl;
+                this.#GM_xmlhttpRequest = GM_xmlhttpRequest;
+                this.#metaUrl = metaUrl;
+                this.#metaRegExp = metaRegExp || /@version\s+(.+)/i;
+                this.#validateParameters();
+            }
+    
+            /**
+             * Starts checking for script updates at a specified interval.
+             *
+             * @memberof ScriptUpdateMonitor
+             * @param {number} [intervalHours = 2] The interval, in hours, to check for script updates. Default is 2. Minimum is 1.
+             * @param {boolean} [checkImmediately = true] If true, checks for a script update immediately when called. Default is true.
+             */
+            start(intervalHours = 2, checkImmediately = true) {
+                if (intervalHours < 1) {
+                    throw new Error('Parameter intervalHours must be at least 1');
+                }
+                if (!this.#intervalChecker) {
+                    if (checkImmediately) this.#postAlertIfNewReleaseAvailable();
+                    // Use the arrow function here to bind the "this" context to the ScriptUpdateMonitor object.
+                    this.#intervalChecker = setInterval(() => this.#postAlertIfNewReleaseAvailable(), intervalHours * 60 * 60 * 1000);
+                }
+            }
+    
+            /**
+             * Stops checking for script updates.
+             *
+             * @memberof ScriptUpdateMonitor
+             */
+            stop() {
+                if (this.#intervalChecker) {
+                    clearInterval(this.#intervalChecker);
+                    this.#intervalChecker = null;
+                }
+            }
+    
+            #validateParameters() {
+                if (this.#metaUrl) {
+                    if (!this.#metaRegExp) {
+                        throw new Error('metaRegExp must be defined if metaUrl is defined.');
+                    }
+                    if (!(this.#metaRegExp instanceof RegExp)) {
+                        throw new Error('metaUrl must be a regular expression.');
+                    }
+                } else {
+                    if (!/\.user\.js$/.test(this.#downloadUrl)) {
+                        throw new Error('Invalid downloadUrl paramenter. Must end with ".user.js" [', this.#downloadUrl, ']');
+                    }
+                    this.#metaUrl = this.#downloadUrl.replace(/\.user\.js$/, '.meta.js');
+                }
+            }
+    
+            async #postAlertIfNewReleaseAvailable() {
+                const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay))
+                let latestVersion;
+                try {
+                    let tries = 1;
+                    const maxTries = 3;
+                    while (tries <= maxTries) {
+                        latestVersion = await this.#fetchLatestReleaseVersion();
+                        if (latestVersion === 503) {
+                            // Greasy Fork returns a 503 error when too many requests are sent quickly.
+                            // Pause and try again.
+                            if (tries < maxTries) {
+                                console.log(`${this.#scriptName}: Checking for latest version again (retry #${tries})`);
+                                await sleep(1000);
+                            } else {
+                                console.error(`${this.#scriptName}: Failed to check latest version #. Too many 503 status codes returned.`);
+                            }
+                            tries += 1;
+                        } else if (latestVersion.status) {
+                            console.error(`${this.#scriptName}: Error while checking for latest version.`, latestVersion);
+                            return;
+                        } else {
+                            break;
+                        }
+                    }
+                } catch (ex) {
+                    console.error(`${this.#scriptName}: Error while checking for latest version.`, ex);
+                    return;
+                }
+                if (latestVersion > this.#currentVersion && latestVersion > (this.#lastVersionChecked || '0')) {
+                    this.#lastVersionChecked = latestVersion;
+                    this.#clearPreviousAlerts();
+                    this.#postNewVersionAlert(latestVersion);
+                }
+            }
+    
+            #postNewVersionAlert(newVersion) {
+                const message = `<a href="${this.#downloadUrl}" target = "_blank">Version ${
+                    newVersion}</a> is available.<br>Update now to get the latest features and fixes.`;
+                WazeToastr.Alerts.info(this.#scriptName, message, true, false);
+            }
+    
+            #fetchLatestReleaseVersion() {
+                const metaUrl = this.#metaUrl;
+                const metaRegExp = this.#metaRegExp;
+                return new Promise((resolve, reject) => {
+                    this.#GM_xmlhttpRequest({
+                        nocache: true,
+                        revalidate: true,
+                        url: metaUrl,
+                        onload(res) {
+                            if (res.status === 503) {
+                                resolve(503);
+                            } else if (res.status === 200) {
+                                const versionMatch = res.responseText.match(metaRegExp);
+                                if (versionMatch?.length !== 2) {
+                                    throw new Error(`Invalid RegExp expression (${metaRegExp}) or version # could not be found at this URL: ${metaUrl}`);
+                                }
+                                resolve(res.responseText.match(metaRegExp)[1]);
+                            } else {
+                                resolve(res);
+                            }
+                        },
+                        onerror(res) {
+                            reject(res);
+                        }
+                    });
+                });
+            }
+    
+            #clearPreviousAlerts() {
+                $('.toast-container-wazetoastr .toast-info:visible').toArray().forEach(elem => {
+                    const $alert = $(elem);
+                    const title = $alert.find('.toast-title').text();
+                    if (title === this.#scriptName) {
+                        const message = $alert.find('.toast-message').text();
+                        if (/version .* is available/i.test(message)) {
+                            // Force a click to make the alert go away.
+                            $alert.click();
+                        }
+                    }
+                });
+            }
+        }
     }
 }.call(this));
