@@ -219,11 +219,9 @@
             if (disableClickToClose)
                 options.tapToDismiss = false;
             
-            // Show the toast notification
-            wazetoastr.info(message, scriptName, options);
-            
-            // Also add to history
-            $(wazetoastr.info(message, scriptName, options)).clone().prependTo('#WTAlertsHistory-list > .toast-container-wazetoastr').find('.toast-close-button').remove();
+            // Show the toast notification and also add to history
+            let $toast = wazetoastr.info(message, scriptName, options);
+            $($toast).clone().prependTo('#WTAlertsHistory-list > .toast-container-wazetoastr').find('.toast-close-button').remove();
         }
 
         this.warning = function (scriptName, message) {
