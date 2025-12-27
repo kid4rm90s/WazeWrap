@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WazeToastr
 // @namespace    https://greasyfork.org/users/30701-justins83-waze
-// @version      2025.03.22.00
+// @version      2025.12.27.00
 // @description  A toastr notification library for WME scripts
 // @author       JustinS83/MapOMatic
 // @include      https://beta.waze.com/*editor*
@@ -9,6 +9,8 @@
 // @exclude      https://www.waze.com/*user/editor/*
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
+
+// Forked from WazeDev's WazeWrap script to use a more reliable CDN for displaying the alerts and the main library file.
 
 /* global WazeToastr */
 /* global $ */
@@ -19,7 +21,6 @@ var WazeToastr = {};
 (function() {
     'use strict';
     const MIN_VERSION = '2019.05.01.01';
-    // const WT_URL = 'https://cdn.jsdelivr.net/gh/WazeDev/WazeToastr@latest/WazeToastrLib.js';
     const WT_URL = 'https://kid4rm90s.github.io/WazeToastr/WazeToastrLib.js';
 
     async function init(){
